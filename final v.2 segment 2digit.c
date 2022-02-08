@@ -14,6 +14,12 @@
 #define TIMx_PSC 3200
 #define TIMx_ARR 100
 
+#define DS1820_CONV_TEMP 0x44
+#define DS1820_READ_SCTPAD 0xBE
+
+#define OW_IO_PIN 	LL_GPIO_PIN_6
+#define OW_IO_PORT 	GPIOB
+#define OW_IO_CLK_CMD 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB)
 
 /*already implemented */
 void SystemClock_Config(void);
@@ -22,16 +28,19 @@ uint8_t OW_ReadBit(void);
 void DS1820_GPIO_Configure(void);
 uint8_t DS1820_ResetPulse(void);
 
+
 /*haven't been implemented yet!*/
 void OW_Master(void);
 void OW_Slave(void);
 void OW_WriteByte(uint8_t data);
 uint16_t OW_ReadByte(void);
 
+
 uint32_t CheckDigit(uint32_t);
 void segment(uint32_t);
 uint32_t CharToUint32_t(char number);
 void ltc4727_GPIO_Config(void);
+
 
 /*motor*/
 void TIM_OC_Config(void);
@@ -41,18 +50,20 @@ uint16_t temp;
 float temp_cal;
 uint8_t status;
 char LOG[10] = "";
+
 uint32_t seg[4] = {LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14,
 									 LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14,
 									 LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14,
 									 LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 };
 uint32_t digit[2] = {LL_GPIO_PIN_0 , LL_GPIO_PIN_1};
 
+
 int main()
 {
 	SystemClock_Config();
 	DWT_Init();
 	DS1820_GPIO_Configure();
-	ltc4727_GPIO_Config();
+//	ltc4727_GPIO_Config();
 	TIM_OC_Config();
 	
 	while(1)
@@ -83,19 +94,19 @@ int main()
 		temp = OW_ReadByte();
 		
 		//Convert to readable floating point temperature
-		temp_cal = (temp*1) / 16;
+		temp_cal = (temp)/16;
 
 		segment((uint32_t)temp_cal);
 		
-		for(int i=0;i<4;i++){
-			LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3);//Write 0 to GPIOC
+		for(int i=0;i<2;i++){
+			LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_0 | LL_GPIO_PIN_1);//Write 0 to GPIOC
 			LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_2 | LL_GPIO_PIN_10 | LL_GPIO_PIN_11 | LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15);//Reser all segment
 			LL_GPIO_SetOutputPin(GPIOC, digit[i]);
 			LL_GPIO_SetOutputPin(GPIOB, seg[i]);
 		}
 		
 		//fan running
-		if(temp_cal > 30.00)
+		if(temp_cal > 20)
 		{
 			LL_TIM_OC_SetCompareCH2(TIM3,LL_TIM_GetAutoReload(TIM3));
 			
@@ -124,10 +135,10 @@ void TIM_BASE_Config(void)
 	LL_TIM_Init(TIM3, &timbase_initstructure);
 
 }
-//dc moter
+
 void TIM_OC_GPIO_Config(void)
 {
-	/*
+	
 	LL_GPIO_InitTypeDef gpio_initstructure;
 	
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
@@ -138,7 +149,6 @@ void TIM_OC_GPIO_Config(void)
 	gpio_initstructure.Mode = LL_GPIO_MODE_INPUT;
 	gpio_initstructure.Pin = LL_GPIO_PIN_0;
 	LL_GPIO_Init(GPIOA, &gpio_initstructure);
-	*/
 	
 	LL_GPIO_InitTypeDef l293d_init;
 	
@@ -188,33 +198,6 @@ void TIM_OC_Config(void)
 	LL_TIM_EnableCounter(TIM3);
 }
 
-void OW_WriteBit(uint8_t d)
-{
-	if(d == 1) //Write 1
-	{
-		OW_Master(); //uC occupies wire bus
-		LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_6);
-		DWT_Delay(1);
-		OW_Slave(); //uC releases wire bus
-		DWT_Delay(60);
-	}
-	else //Write 0
-	{
-		OW_Master(); //uC occupies wire bus
-		DWT_Delay(60);
-		OW_Slave(); //uC releases wire bus
-	}
-}
-
-uint8_t OW_ReadBit(void)
-{
-	OW_Master();
-	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_6);
-	DWT_Delay(2);
-	OW_Slave();
-	
-	return LL_GPIO_IsInputPinSet(GPIOB, LL_GPIO_PIN_6);	
-}
 
 
 void DS1820_GPIO_Configure(void)
@@ -224,37 +207,14 @@ void DS1820_GPIO_Configure(void)
 	LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
 	
 	ds1820_io.Mode = LL_GPIO_MODE_OUTPUT;
-	ds1820_io.Pin = LL_GPIO_PIN_6;
+	ds1820_io.Pin = OW_IO_PIN;
 	ds1820_io.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
 	ds1820_io.Pull = LL_GPIO_PULL_NO;
 	ds1820_io.Speed = LL_GPIO_SPEED_FREQ_LOW;
 	LL_GPIO_Init(GPIOB, &ds1820_io);
 }
 
-uint8_t DS1820_ResetPulse(void)
-{	
-	OW_Master();
-	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_6);
-	DWT_Delay(480);
-	OW_Slave();
-	DWT_Delay(80);
-	
-	if(LL_GPIO_IsInputPinSet(GPIOB, LL_GPIO_PIN_6) == 0)
-	{
-		LOG[0] = 'E';
-		LOG[1] = 'R';
-		LOG[2] = 'R';
-		LOG[3] = 'O';
-		LOG[4] = 'R';
-		return 0;
-	}
-	else
-	{
-		LOG[0] = 'O';
-		LOG[1] = 'K';
-		return 1;
-	}
-}
+
 
 void SystemClock_Config(void)
 {
@@ -310,66 +270,98 @@ void SystemClock_Config(void)
   LL_SetSystemCoreClock(32000000);
 }
 
-void OW_Master(void){
-	LL_GPIO_InitTypeDef ds1820_io;
+uint8_t DS1820_ResetPulse(void)
+{	
+	OW_Master();
+	LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_6);
+	DWT_Delay(480);
+	OW_Slave();
+	DWT_Delay(80);
 	
-	ds1820_io.Mode = LL_GPIO_MODE_OUTPUT;
-	ds1820_io.Pin = LL_GPIO_PIN_6;
-	ds1820_io.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-	ds1820_io.Pull = LL_GPIO_PULL_NO;
-	ds1820_io.Speed = LL_GPIO_SPEED_FREQ_LOW;
-	LL_GPIO_Init(GPIOB, &ds1820_io);
+	if(LL_GPIO_IsInputPinSet(OW_IO_PORT, OW_IO_PIN == 0))
+	{
+		DWT_Delay(400);
+		return 0;
+	}
+	else
+	{
+		DWT_Delay(400);
+		return 1;
+	}
+}
+
+void OW_Master(void){
+	LL_GPIO_SetPinMode(OW_IO_PORT,OW_IO_PIN,LL_GPIO_MODE_OUTPUT);
+	LL_GPIO_SetPinPull(OW_IO_PORT,OW_IO_PIN,LL_GPIO_PULL_NO);
 }
 
 void OW_Slave(void){
-	LL_GPIO_InitTypeDef ds1820_io;
-	
-	ds1820_io.Mode = LL_GPIO_MODE_INPUT;
-	ds1820_io.Pin = LL_GPIO_PIN_6;
-	ds1820_io.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-	ds1820_io.Pull = LL_GPIO_PULL_NO;
-	ds1820_io.Speed = LL_GPIO_SPEED_FREQ_LOW;
-	LL_GPIO_Init(GPIOB, &ds1820_io);
+	LL_GPIO_SetPinMode(OW_IO_PORT,OW_IO_PIN,LL_GPIO_MODE_INPUT);
+	LL_GPIO_SetPinPull(OW_IO_PORT,OW_IO_PIN,LL_GPIO_PULL_UP);
 }
 
-void OW_WriteByte(uint8_t data){
-	uint8_t i,temp;
-	
-	OW_Master();		//The data line is configured as output
-	for(i = 0; i < 8; i++)
+void OW_WriteBit(uint8_t d){
+	if(d == 1) //write 1
 	{
-	    temp = data&0x01;
-        if(temp)              
-            OW_WriteBit(1);	//Write 1
-        else                  
-            OW_WriteBit(0);		//Write 0 	
-        data >>= 1;						//There are 8 places in total, starting from the low position and then moving to the right	
+		OW_Master(); //uC occupires wire system
+		LL_GPIO_ResetOutputPin(OW_IO_PORT, OW_IO_PIN);
+		DWT_Delay(1);
+		OW_Slave(); //uC releases wire system
+		DWT_Delay(60);
 	}
-	OW_Slave();
+	else //write 0
+	{
+		OW_Master(); //uC occupires wire system
+		DWT_Delay(60);
+		OW_Slave(); //uC releases wire system
+	}
 }
 
-uint16_t OW_ReadByte(void){
-	uint16_t i,th,tl,temp;
+void OW_WriteByte(uint8_t data)
+{
+	uint8_t i;
 	
-	th = 0;
-	tl = 0;
-  for(i = 0; i < 8; i++)
-  {
-		tl |= OW_ReadBit() << i;		//Read low first
+	for(i=0; i < 8 ;++i)
+	{
+		OW_WriteBit(data & 0x01);
+		data = (data >> 1 );
 	}
-	for(i = 0; i < 8; i++)
-  {
-		th |= OW_ReadBit() << i;		//Read low first
-	}
-	temp = (th<<8) | tl;
-	return temp;
 }
+
+uint8_t OW_ReadBit(void)
+{
+	OW_Master();
+	LL_GPIO_ResetOutputPin(OW_IO_PORT,OW_IO_PIN);
+	DWT_Delay(2);
+	OW_Slave();
+	
+	return LL_GPIO_IsInputPinSet(OW_IO_PORT, OW_IO_PIN);
+}
+
+uint16_t OW_ReadByte(void)
+{
+	uint8_t i, bit;
+	uint8_t result = 0;
+	for(i = 0 ; i < 8; i++)
+	{
+		bit = OW_ReadBit();
+		if(bit == 1)
+		{
+			result |= (1<<i);
+		}
+		DWT_Delay(60);
+	}
+	return result;
+}
+
+
+//for7 segment
 
 uint32_t CheckDigit(uint32_t number)
 {
     int i;
     int digit;
-    char seg[2];
+    char seg[4];
     for(i=0;number!=0;i++)
     {
         number = number/10;
@@ -380,10 +372,13 @@ uint32_t CheckDigit(uint32_t number)
 void segment(uint32_t number)
 {
     uint32_t digit;
-    char numberForShow[4];
+    char numberForShow[2];
     digit = CheckDigit(number);
     switch(digit)
     {
+		case 0:
+				 numberForShow[0] = '0';
+        numberForShow[1] =  '0';
     case 1:
         numberForShow[0] = '0';
         numberForShow[1] = number+'0';
@@ -394,11 +389,13 @@ void segment(uint32_t number)
         break;
     }
 		
-		for(int i=0;i<4;i++)
+		for(int i=0;i<2;i++)
 		{
 			seg[i] = CharToUint32_t(numberForShow[i]);
 		}
 }
+
+
 
 uint32_t CharToUint32_t(char number)
 {
@@ -427,6 +424,8 @@ uint32_t CharToUint32_t(char number)
     }
 }
 
+
+
 void ltc4727_GPIO_Config(void)
 {
 	LL_GPIO_InitTypeDef ltc4727_init;
@@ -445,3 +444,4 @@ void ltc4727_GPIO_Config(void)
 	ltc4727_init.Pin = LL_GPIO_PIN_0 | LL_GPIO_PIN_1;
 	LL_GPIO_Init(GPIOC, &ltc4727_init);
 }
+
