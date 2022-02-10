@@ -464,7 +464,7 @@ void TIM2_IRQHandler(void)
 		segment((uint32_t)temp_cal);
 		
 		//fan running
-		if(temp_cal > 20)
+		if(temp_cal > 40)
 		{
 			LL_TIM_OC_SetCompareCH2(TIM3,LL_TIM_GetAutoReload(TIM3));
 			
