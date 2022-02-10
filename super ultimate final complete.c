@@ -75,7 +75,7 @@ int main()
 	//Time-base configure
 	timbase_initstructure.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
 	timbase_initstructure.CounterMode = LL_TIM_COUNTERMODE_DOWN;
-	timbase_initstructure.Autoreload = 10000 - 1; //10 second
+	timbase_initstructure.Autoreload = 3000 - 1; //3 second
 	timbase_initstructure.Prescaler =  32000 - 1;
 	LL_TIM_Init(TIM2, &timbase_initstructure);
 	LL_TIM_EnableIT_UPDATE(TIM2);
